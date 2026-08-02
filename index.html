@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover">
+<title>Pantry List</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#241D16">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Grocery">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #241D16;
+    --surface: #2F2519;
+    --surface-2: #3A2E1F;
+    --line: #4a3c29;
+    --text: #F3E9D8;
+    --text-muted: #B8A88C;
+    --turmeric: #E3A73B;
+    --chili: #C1452B;
+    --sabzi: #7A9B5C;
+
+    --c-fresh: #7A9B5C;
+    --c-dairy: #E8D9B8;
+    --c-pantry: #E3A73B;
+    --c-house: #7E97A8;
+    --c-other: #9A8F7B;
+
+    font-size: 16px;
+  }
+
+  *{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html,body{
+    margin:0; padding:0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Work Sans', sans-serif;
+    min-height: 100vh;
+  }
+
+  body{ padding-bottom: 108px; }
+
+  header.top{
+    padding: 28px 20px 16px;
+    position: sticky; top: 0; z-index: 10;
+    background: linear-gradient(var(--bg) 78%, transparent);
+  }
+
+  header.top .eyebrow{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--turmeric);
+    margin: 0 0 6px;
+  }
+
+  header.top h1{
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 1.9rem;
+    margin: 0 0 4px;
+    letter-spacing: -0.01em;
+  }
+
+  header.top p.sub{
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.88rem;
+    line-height: 1.5;
+  }
+
+  /* single smart bar: search existing items or add a new one */
+  .smart-row{
+    margin-top: 16px;
+    position: relative;
+  }
+  .smart-row .input-wrap{
+    display:flex; gap:8px;
+  }
+  .smart-row input[type="text"]{
+    flex:1;
+    background: var(--surface);
+    border: 1.5px solid var(--line);
+    border-radius: 12px;
+    color: var(--text);
+    padding: 13px 14px;
+    font-size: 1rem;
+    font-family: 'Work Sans', sans-serif;
+  }
+  .smart-row input[type="text"]::placeholder{ color: var(--text-muted); }
+  .smart-row input[type="text"]:focus{ outline: 2px solid var(--turmeric); outline-offset: 1px; }
+
+  .smart-row .clear-btn{
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--text-muted);
+    border-radius: 12px;
+    padding: 0 14px;
+    font-size: 0.85rem;
+    font-family: 'Work Sans', sans-serif;
+  }
+
+  .suggest-add{
+    display:none;
+    margin-top: 10px;
+    background: var(--surface-2);
+    border: 1px dashed var(--sabzi);
+    border-radius: 12px;
+    padding: 12px 14px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .suggest-add.show{ display:flex; }
+  .suggest-add .txt{ font-size: 0.9rem; line-height:1.4; }
+  .suggest-add .txt b{ color: var(--turmeric); }
+  .suggest-add .cat-tag{
+    color: var(--text-muted);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+  }
+  .suggest-add button.add-it{
+    flex: 0 0 auto;
+    background: var(--sabzi);
+    color: #14210c;
+    border: none;
+    border-radius: 9px;
+    padding: 9px 16px;
+    font-weight: 600;
+    font-size: 0.86rem;
+    font-family: 'Work Sans', sans-serif;
+  }
+
+  .no-match-note{
+    display:none;
+    margin-top: 10px;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    text-align:center;
+  }
+  .no-match-note.show{ display:block; }
+
+  main{ padding: 4px 20px 24px; }
+
+  .category{
+    margin-bottom: 10px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    overflow: hidden;
+    background: var(--surface);
+  }
+  .category.hidden{ display:none; }
+
+  .category-head{
+    width: 100%;
+    display:flex; align-items:center; gap: 10px;
+    padding: 14px 16px;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 1.02rem;
+    text-align:left;
+  }
+
+  .dot{ width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+
+  .category-head .count{
+    margin-left: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+  }
+
+  .category-head .chev{
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-muted);
+    transition: transform 0.18s ease;
+    font-size: 0.8rem;
+  }
+  .category.open .chev{ transform: rotate(90deg); }
+
+  .items{ display: grid; grid-template-columns: 1fr; padding: 0 6px 8px; }
+  .category:not(.open) .items{ display:none; }
+
+  label.item{
+    display:flex; align-items:center; gap: 12px;
+    padding: 10px 10px;
+    border-radius: 10px;
+    font-size: 0.94rem;
+  }
+  label.item:active{ background: var(--surface-2); }
+  label.item.hidden{ display:none; }
+
+  label.item input[type="checkbox"]{
+    appearance: none; -webkit-appearance: none;
+    width: 21px; height: 21px;
+    border-radius: 6px;
+    border: 1.5px solid var(--line);
+    background: var(--bg);
+    flex: 0 0 auto;
+    display:grid; place-items:center;
+  }
+  label.item input[type="checkbox"]::after{
+    content:"";
+    width: 11px; height: 11px;
+    border-radius: 3px;
+    background: var(--turmeric);
+    transform: scale(0);
+    transition: transform 0.12s ease;
+  }
+  label.item input[type="checkbox"]:checked::after{ transform: scale(1); }
+  label.item input[type="checkbox"]:checked{ border-color: var(--turmeric); }
+
+  label.item span.name{ flex:1; }
+  label.item input[type="checkbox"]:checked ~ span.name{
+    color: var(--text-muted);
+    text-decoration: line-through;
+    text-decoration-color: var(--turmeric);
+  }
+
+  label.item .remove{
+    flex: 0 0 auto;
+    background: none; border: none;
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    line-height: 1;
+    padding: 4px 6px;
+  }
+
+  .empty-note{
+    text-align:center;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    padding: 20px 20px 10px;
+  }
+
+  .send-bar{
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    padding: 12px 16px calc(14px + env(safe-area-inset-bottom));
+    background: linear-gradient(180deg, transparent, var(--bg) 30%);
+    z-index: 20;
+  }
+  .send-pill{
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 12px 14px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+  }
+  .send-pill .row1{
+    display:flex; align-items:baseline; justify-content:space-between;
+    margin-bottom: 10px;
+  }
+  .send-pill .count-label{
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--turmeric);
+  }
+  .send-pill .count-label b{ font-size: 1rem; color: var(--text); }
+  .send-pill button.review{
+    background: none; border: none;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    text-decoration: underline;
+    font-family: 'Work Sans', sans-serif;
+  }
+  .phone-row{ display:flex; gap:8px; margin-bottom: 10px; }
+  .phone-row input[type="tel"]{
+    flex:1;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    color: var(--text);
+    padding: 10px 12px;
+    font-size: 0.92rem;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .phone-row input[type="tel"]::placeholder{ color: var(--text-muted); }
+  .send-actions{ display:grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .btn{
+    border: none; border-radius: 11px;
+    padding: 12px 10px;
+    font-family: 'Work Sans', sans-serif;
+    font-weight: 600;
+    font-size: 0.92rem;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+  .btn.whatsapp{ background: var(--sabzi); color: #14210c; }
+  .btn.sms{ background: var(--turmeric); color: #2a1c04; }
+  .btn:disabled{ opacity: 0.4; }
+  .hint{ text-align:center; color: var(--text-muted); font-size: 0.72rem; margin-top: 8px; }
+
+  .overlay{
+    position: fixed; inset:0; background: rgba(0,0,0,0.55);
+    z-index: 30; display:none; align-items:flex-end; justify-content:center;
+  }
+  .overlay.show{ display:flex; }
+  .sheet{
+    background: var(--surface);
+    border-radius: 18px 18px 0 0;
+    width: 100%; max-width: 480px;
+    max-height: 74vh;
+    padding: 20px 20px calc(20px + env(safe-area-inset-bottom));
+    overflow-y: auto;
+    border-top: 1px solid var(--line);
+  }
+  .sheet h2{ font-family:'Fraunces', serif; margin:0 0 12px; font-size:1.2rem; }
+  .sheet pre{
+    white-space: pre-wrap;
+    font-family: 'Work Sans', sans-serif;
+    font-size: 0.9rem;
+    line-height: 1.55;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px;
+    margin: 0 0 14px;
+  }
+  .sheet button.close{
+    width: 100%;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    color: var(--text);
+    padding: 11px; border-radius: 10px;
+    font-family: 'Work Sans', sans-serif; font-weight: 500;
+  }
+
+  footer.roadmap{
+    padding: 18px 20px 4px;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    text-align: center;
+    line-height: 1.6;
+  }
+
+  .install-banner{
+    display:none;
+    margin: 0 20px 14px;
+    background: var(--surface-2);
+    border: 1px solid var(--turmeric);
+    border-radius: 14px;
+    padding: 14px 16px;
+  }
+  .install-banner.show{ display:block; }
+  .install-banner .top-row{
+    display:flex; align-items:flex-start; justify-content:space-between; gap: 10px;
+    margin-bottom: 8px;
+  }
+  .install-banner h3{
+    margin:0; font-family:'Fraunces', serif; font-size: 0.98rem; font-weight:600;
+  }
+  .install-banner button.dismiss{
+    background:none; border:none; color: var(--text-muted);
+    font-size: 1.1rem; line-height:1; padding: 0 2px; flex: 0 0 auto;
+  }
+  .install-banner ol{
+    margin: 0; padding-left: 18px;
+    font-size: 0.85rem; line-height: 1.65; color: var(--text);
+  }
+  .install-banner .icon-hint{
+    font-family:'JetBrains Mono', monospace;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 0 5px;
+    font-size: 0.78rem;
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <p class="eyebrow">Getting started</p>
+  <h1>Grocery List</h1>
+  <p class="sub">Type anything you need below — we'll sort it into the right group for you. Or scroll down and tap items you already know you're low on.</p>
+  <div class="smart-row">
+    <div class="input-wrap">
+      <input type="text" id="smartInput" placeholder="Search or type a new item…">
+      <button class="clear-btn" id="clearAll">Clear all</button>
+    </div>
+    <div class="suggest-add" id="suggestAdd">
+      <div class="txt">Add <b id="suggestName"></b> — <span class="cat-tag" id="suggestCat"></span></div>
+      <button class="add-it" id="confirmAdd">Add</button>
+    </div>
+  </div>
+</header>
+
+<div class="install-banner" id="installBanner">
+  <div class="top-row">
+    <h3 id="installTitle">Add this to your Home Screen</h3>
+    <button class="dismiss" id="dismissBanner" aria-label="Dismiss">×</button>
+  </div>
+  <ol id="installSteps"></ol>
+</div>
+
+<main id="categories"></main>
+
+<div class="empty-note" id="emptyNote" style="display:none;">No items match — type it above to add it as new.</div>
+
+<footer class="roadmap">
+  Coming later: refill reminders based on when you last ordered each item.
+</footer>
+
+<div class="send-bar">
+  <div class="send-pill">
+    <div class="row1">
+      <div class="count-label"><b id="selCount">0</b> items selected</div>
+      <button class="review" id="reviewBtn">preview list</button>
+    </div>
+    <div class="phone-row">
+      <input type="tel" id="phone" placeholder="Phone number, e.g. 15551234567">
+    </div>
+    <div class="send-actions">
+      <button class="btn whatsapp" id="sendWA" disabled>Send · WhatsApp</button>
+      <button class="btn sms" id="sendSMS" disabled>Send · Text</button>
+    </div>
+    <p class="hint">Include country code, no + or spaces needed.</p>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="sheet">
+    <h2>Your list</h2>
+    <pre id="listPreview"></pre>
+    <button class="close" id="closeSheet">Close</button>
+  </div>
+</div>
+
+<script>
+// Four broad groups only — everything a home shopper needs, without a maze of aisles.
+const CATS = ["Fresh Produce", "Dairy & Eggs", "Pantry & Dry Goods", "Household & Personal Care"];
+
+const MASTER = {
+  "Fresh Produce": ["Bhindi","Kheera","Gajar","Palak","Patta gobi","Beans","Mooli","Zucchini","Lauki","Capsicum","Methi","Aloo","Sweet potato","Beets","Tamatar","Pyaaz","Green chili","Ginger","Garlic","Dhaniya","Nimbu","Green peas","Apples","Bananas","Berries","Pineapple","Melon"],
+  "Dairy & Eggs": ["Milk","Curd","Butter","Ghee","Eggs"],
+  "Pantry & Dry Goods": ["Wheat atta","Bajra atta","Rice","Sooji","Poha","Besan","Sattu","Bread","Moong (sabut)","Moong (split)","Masoor","Arhar","Chana","Rajma","Chole","Peanut oil","Mustard oil","Olive oil","Coconut oil","Haldi (turmeric)","Jeera (cumin)","Dhaniya powder","Red chili powder","Black pepper","Garam masala","Mustard seeds","Methi seeds","Hing (asafoetida)","Cloves","Cardamom","Cinnamon","Bay leaf","Salt","Sugar","Tea","Peanuts","Ajwain","Amchoor","Kasuri methi","Kalonji","Jaggery","Saunf","Sambhar masala","Kali mirch","Baking soda","Kala namak","Almonds","Walnuts","Kishmish","Pumpkin seeds","Sunflower seeds","Flax seeds","Chia seeds"],
+  "Household & Personal Care": ["Handwash","Sanitizer","Dishwash liquid","Dishwash pods","Detergent liquid","Detergent pods","Toilet cleaner","Floor cleaner","Shampoo","Conditioner","Body wash","Toothpaste","Dental floss","Pads","Liners","Diapers","Wipes","Changing pads","Kleenex tissue","Paper towels","Tissue rolls"]
+};
+
+const CAT_COLOR = {
+  "Fresh Produce": "var(--c-fresh)",
+  "Dairy & Eggs": "var(--c-dairy)",
+  "Pantry & Dry Goods": "var(--c-pantry)",
+  "Household & Personal Care": "var(--c-house)",
+  "Other": "var(--c-other)"
+};
+
+// keyword fallbacks so a brand-new user can type plain English and still land in the right group
+const KEYWORDS = {
+  "Fresh Produce": ["tomato","onion","potato","carrot","spinach","cabbage","cucumber","pepper","chili","chilli","garlic","ginger","lemon","lime","apple","banana","berry","berries","orange","mango","grape","melon","avocado","broccoli","cauliflower","lettuce","kale","corn","peas","bean sprout","cilantro","coriander","herbs","salad","fruit","vegetable","veggie","greens"],
+  "Dairy & Eggs": ["milk","cheese","yogurt","yoghurt","curd","butter","ghee","cream","paneer","egg"],
+  "Pantry & Dry Goods": ["rice","flour","atta","wheat","oats","cereal","bread","pasta","noodle","sugar","salt","oil","spice","masala","lentil","dal","chickpea","nuts","almond","walnut","seed","tea","coffee","jaggery","honey","sauce","vinegar","snack","chips","biscuit","cookie","jam","pickle","ketchup","canned","beans (dry)"],
+  "Household & Personal Care": ["soap","shampoo","conditioner","detergent","cleaner","tissue","paper towel","towel","toilet","sanitizer","toothpaste","floss","diaper","wipes","pad","liner","deodorant","lotion","razor","sponge","trash bag","battery","bulb","cleaning"]
+};
+
+// build a flat lookup of every master item -> category, for exact/partial matches
+const ITEM_TO_CAT = {};
+Object.entries(MASTER).forEach(([cat, items]) => {
+  items.forEach(name => { ITEM_TO_CAT[name.toLowerCase()] = cat; });
+});
+
+function categorize(name){
+  const n = name.toLowerCase().trim();
+  if (ITEM_TO_CAT[n]) return ITEM_TO_CAT[n];
+  // partial match against known items (e.g. "tom" -> "Tamatar" won't match, but "tomato" style typed names will)
+  for (const [item, cat] of Object.entries(ITEM_TO_CAT)){
+    if (item.includes(n) || n.includes(item)) return cat;
+  }
+  for (const [cat, words] of Object.entries(KEYWORDS)){
+    if (words.some(w => n.includes(w) || w.includes(n))) return cat;
+  }
+  return "Other";
+}
+
+// in-memory state only, resets on reload
+const state = {
+  checked: new Set(),
+  custom: {}   // { categoryName: [itemName, ...] } — items the user typed in themselves
+};
+CATS.forEach(c => state.custom[c] = []);
+state.custom["Other"] = [];
+
+const container = document.getElementById('categories');
+
+function itemsForCat(cat){
+  const master = MASTER[cat] || [];
+  const custom = state.custom[cat] || [];
+  return [...master.map(n => ({name: n, removable: false})), ...custom.map(n => ({name: n, removable: true}))];
+}
+
+function activeCategoryList(){
+  // show Other only once it actually has items
+  return state.custom["Other"].length ? [...CATS, "Other"] : CATS;
+}
+
+function renderCategory(cat){
+  const items = itemsForCat(cat);
+  const checkedCount = items.filter(it => state.checked.has(cat + '::' + it.name)).length;
+
+  const catEl = document.createElement('div');
+  catEl.className = 'category open';
+  catEl.dataset.cat = cat;
+
+  const head = document.createElement('button');
+  head.className = 'category-head';
+  head.innerHTML = `
+    <span class="dot" style="background:${CAT_COLOR[cat] || CAT_COLOR.Other}"></span>
+    <span>${cat}</span>
+    <span class="count">${checkedCount}/${items.length}</span>
+    <span class="chev">›</span>
+  `;
+  head.addEventListener('click', () => catEl.classList.toggle('open'));
+
+  const itemsWrap = document.createElement('div');
+  itemsWrap.className = 'items';
+
+  items.forEach(({name, removable}) => {
+    const id = cat + '::' + name;
+    const label = document.createElement('label');
+    label.className = 'item';
+    label.dataset.name = name.toLowerCase();
+    label.innerHTML = `
+      <input type="checkbox" data-id="${id.replace(/"/g,'')}">
+      <span class="name">${name}</span>
+      ${removable ? '<button type="button" class="remove" aria-label="Remove item">×</button>' : ''}
+    `;
+    const cb = label.querySelector('input');
+    cb.checked = state.checked.has(id);
+    cb.addEventListener('change', () => {
+      if (cb.checked) state.checked.add(id); else state.checked.delete(id);
+      updateBar();
+      updateCatCount(catEl, cat);
+    });
+    if (removable){
+      label.querySelector('.remove').addEventListener('click', (e) => {
+        e.preventDefault();
+        state.custom[cat] = state.custom[cat].filter(n => n !== name);
+        state.checked.delete(id);
+        render();
+      });
+    }
+    itemsWrap.appendChild(label);
+  });
+
+  catEl.appendChild(head);
+  catEl.appendChild(itemsWrap);
+  return catEl;
+}
+
+function updateCatCount(catEl, cat){
+  const items = itemsForCat(cat);
+  const checkedCount = items.filter(it => state.checked.has(cat + '::' + it.name)).length;
+  catEl.querySelector('.count').textContent = `${checkedCount}/${items.length}`;
+}
+
+function render(){
+  container.innerHTML = '';
+  activeCategoryList().forEach(cat => container.appendChild(renderCategory(cat)));
+  updateBar();
+  applyFilter(document.getElementById('smartInput').value);
+}
+
+function updateBar(){
+  document.getElementById('selCount').textContent = state.checked.size;
+  const has = state.checked.size > 0;
+  document.getElementById('sendWA').disabled = !has;
+  document.getElementById('sendSMS').disabled = !has;
+}
+
+function buildMessage(){
+  const byCat = {};
+  state.checked.forEach(id => {
+    const idx = id.indexOf('::');
+    const cat = id.slice(0, idx), name = id.slice(idx + 2);
+    (byCat[cat] = byCat[cat] || []).push(name);
+  });
+  let lines = ["Grocery list:"];
+  activeCategoryList().forEach(cat => {
+    if (byCat[cat]) {
+      lines.push('');
+      lines.push(cat + ':');
+      byCat[cat].forEach(n => lines.push('- ' + n));
+    }
+  });
+  return lines.join('\n');
+}
+
+// ---- smart search / add bar ----
+function applyFilter(rawQ){
+  const q = rawQ.trim().toLowerCase();
+  let anyVisible = false;
+
+  document.querySelectorAll('.category').forEach(catEl => {
+    let catHasMatch = false;
+    catEl.querySelectorAll('.item').forEach(itemEl => {
+      const match = itemEl.dataset.name.includes(q);
+      itemEl.classList.toggle('hidden', q && !match);
+      if (match) catHasMatch = true;
+    });
+    if (q) {
+      catEl.classList.toggle('hidden', !catHasMatch);
+      if (catHasMatch) anyVisible = true;
+    } else {
+      catEl.classList.remove('hidden');
+    }
+  });
+
+  const emptyNote = document.getElementById('emptyNote');
+  const suggestBox = document.getElementById('suggestAdd');
+
+  if (q && !anyVisible){
+    emptyNote.style.display = 'none';
+    const cat = categorize(q);
+    document.getElementById('suggestName').textContent = rawQ.trim();
+    document.getElementById('suggestCat').textContent = cat;
+    suggestBox.classList.add('show');
+  } else {
+    suggestBox.classList.remove('show');
+    emptyNote.style.display = (q && !anyVisible) ? 'block' : 'none';
+  }
+}
+
+document.getElementById('smartInput').addEventListener('input', (e) => applyFilter(e.target.value));
+document.getElementById('smartInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter'){
+    e.preventDefault();
+    if (document.getElementById('suggestAdd').classList.contains('show')) addCustomItem();
+  }
+});
+
+function addCustomItem(){
+  const input = document.getElementById('smartInput');
+  const name = input.value.trim();
+  if (!name) return;
+  const cat = categorize(name);
+  const already = (state.custom[cat] || []).some(n => n.toLowerCase() === name.toLowerCase());
+  if (!already) state.custom[cat].push(name);
+  state.checked.add(cat + '::' + name);
+  input.value = '';
+  render();
+  input.focus();
+}
+document.getElementById('confirmAdd').addEventListener('click', addCustomItem);
+
+document.getElementById('clearAll').addEventListener('click', () => {
+  state.checked.clear();
+  CATS.forEach(c => state.custom[c] = []);
+  state.custom["Other"] = [];
+  document.getElementById('smartInput').value = '';
+  render();
+});
+
+document.getElementById('reviewBtn').addEventListener('click', () => {
+  document.getElementById('listPreview').textContent = state.checked.size
+    ? buildMessage()
+    : 'No items selected yet.';
+  document.getElementById('overlay').classList.add('show');
+});
+document.getElementById('closeSheet').addEventListener('click', () => {
+  document.getElementById('overlay').classList.remove('show');
+});
+document.getElementById('overlay').addEventListener('click', (e) => {
+  if (e.target.id === 'overlay') document.getElementById('overlay').classList.remove('show');
+});
+
+function cleanPhone(v){ return v.replace(/[^\d]/g, ''); }
+
+document.getElementById('sendWA').addEventListener('click', () => {
+  const phone = cleanPhone(document.getElementById('phone').value);
+  const text = encodeURIComponent(buildMessage());
+  const url = phone ? `https://wa.me/${phone}?text=${text}` : `https://wa.me/?text=${text}`;
+  window.open(url, '_blank');
+});
+
+document.getElementById('sendSMS').addEventListener('click', () => {
+  const phone = cleanPhone(document.getElementById('phone').value);
+  const text = encodeURIComponent(buildMessage());
+  const url = `sms:${phone}?&body=${text}`;
+  window.location.href = url;
+});
+
+render();
+
+// ---- device-aware "add to home screen" guidance ----
+// no phone can force this popup open automatically, so we show clear steps instead
+function initInstallBanner(){
+  const ua = navigator.userAgent || '';
+  const isStandalone = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
+  if (window.navigator.standalone || isStandalone) return; // already installed, nothing to show
+
+  const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+  const isAndroid = /Android/.test(ua);
+  if (!isIOS && !isAndroid) return; // desktop browsers: skip
+
+  const banner = document.getElementById('installBanner');
+  const title = document.getElementById('installTitle');
+  const steps = document.getElementById('installSteps');
+
+  if (isIOS){
+    const inSafari = /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua);
+    title.textContent = 'Add this to your Home Screen';
+    if (inSafari){
+      steps.innerHTML = `
+        <li>Tap the <span class="icon-hint">Share</span> icon at the bottom of Safari</li>
+        <li>Scroll down and tap <span class="icon-hint">Add to Home Screen</span></li>
+        <li>Tap <span class="icon-hint">Add</span> — it'll now open like an app</li>
+      `;
+    } else {
+      steps.innerHTML = `
+        <li>iPhone only allows this from Safari</li>
+        <li>Tap the <span class="icon-hint">•••</span> or share icon, then <span class="icon-hint">Open in Safari</span></li>
+        <li>In Safari, tap <span class="icon-hint">Share</span> → <span class="icon-hint">Add to Home Screen</span></li>
+      `;
+    }
+  } else if (isAndroid){
+    title.textContent = 'Add this to your Home Screen';
+    steps.innerHTML = `
+      <li>Tap the <span class="icon-hint">⋮</span> menu in Chrome</li>
+      <li>Tap <span class="icon-hint">Add to Home screen</span></li>
+      <li>Tap <span class="icon-hint">Add</span> — it'll now open like an app</li>
+    `;
+  }
+
+  banner.classList.add('show');
+}
+
+document.getElementById('dismissBanner').addEventListener('click', () => {
+  document.getElementById('installBanner').classList.remove('show');
+});
+
+initInstallBanner();
+
+// only registers when actually hosted over HTTPS — silently does nothing for a local file
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')){
+  navigator.serviceWorker.register('service-worker.js').catch(() => {});
+}
+
+// Android-only: if this file is ever hosted online with a manifest.json,
+// this captures the real native install prompt instead of showing text steps
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  const banner = document.getElementById('installBanner');
+  document.getElementById('installTitle').textContent = 'Install this app';
+  document.getElementById('installSteps').innerHTML = `<li>Tap Install below to add it to your Home Screen</li><li><button type="button" id="nativeInstallBtn" class="add-it" style="margin-top:8px;">Install</button></li>`;
+  banner.classList.add('show');
+  document.getElementById('nativeInstallBtn').addEventListener('click', () => {
+    e.prompt();
+    banner.classList.remove('show');
+  });
+});
+</script>
+</body>
+</html>
