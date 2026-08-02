@@ -108,6 +108,18 @@
     font-family: 'Work Sans', sans-serif;
   }
 
+  .restore-link{
+    display: block;
+    margin-top: 8px;
+    background: none;
+    border: none;
+    color: var(--turmeric);
+    font-size: 0.8rem;
+    text-decoration: underline;
+    font-family: 'Work Sans', sans-serif;
+    padding: 0;
+  }
+
   .suggest-add{
     display:none;
     margin-top: 10px;
@@ -394,6 +406,7 @@
       <div class="txt">Add <b id="suggestName"></b> — <span class="cat-tag" id="suggestCat"></span></div>
       <button class="add-it" id="confirmAdd">Add</button>
     </div>
+    <button class="restore-link" id="restoreLink" style="display:none;"></button>
   </div>
 </header>
 
@@ -487,7 +500,8 @@ function categorize(name){
 // in-memory state only, resets on reload
 const state = {
   checked: new Set(),
-  custom: {}   // { categoryName: [itemName, ...] } — items the user typed in themselves
+  custom: {},        // { categoryName: [itemName, ...] } — items the user typed in themselves
+  removedMaster: new Set()  // "Category::Name" ids for built-in items the user deleted
 };
 CATS.forEach(c => state.custom[c] = []);
 state.custom["Other"] = [];
@@ -495,9 +509,9 @@ state.custom["Other"] = [];
 const container = document.getElementById('categories');
 
 function itemsForCat(cat){
-  const master = MASTER[cat] || [];
+  const master = (MASTER[cat] || []).filter(n => !state.removedMaster.has(cat + '::' + n));
   const custom = state.custom[cat] || [];
-  return [...master.map(n => ({name: n, removable: false})), ...custom.map(n => ({name: n, removable: true}))];
+  return [...master.map(n => ({name: n, isMaster: true})), ...custom.map(n => ({name: n, isMaster: false}))];
 }
 
 function activeCategoryList(){
@@ -526,7 +540,7 @@ function renderCategory(cat){
   const itemsWrap = document.createElement('div');
   itemsWrap.className = 'items';
 
-  items.forEach(({name, removable}) => {
+  items.forEach(({name, isMaster}) => {
     const id = cat + '::' + name;
     const label = document.createElement('label');
     label.className = 'item';
@@ -534,7 +548,7 @@ function renderCategory(cat){
     label.innerHTML = `
       <input type="checkbox" data-id="${id.replace(/"/g,'')}">
       <span class="name">${name}</span>
-      ${removable ? '<button type="button" class="remove" aria-label="Remove item">×</button>' : ''}
+      <button type="button" class="remove" aria-label="Delete item">×</button>
     `;
     const cb = label.querySelector('input');
     cb.checked = state.checked.has(id);
@@ -543,14 +557,16 @@ function renderCategory(cat){
       updateBar();
       updateCatCount(catEl, cat);
     });
-    if (removable){
-      label.querySelector('.remove').addEventListener('click', (e) => {
-        e.preventDefault();
+    label.querySelector('.remove').addEventListener('click', (e) => {
+      e.preventDefault();
+      if (isMaster){
+        state.removedMaster.add(id);
+      } else {
         state.custom[cat] = state.custom[cat].filter(n => n !== name);
-        state.checked.delete(id);
-        render();
-      });
-    }
+      }
+      state.checked.delete(id);
+      render();
+    });
     itemsWrap.appendChild(label);
   });
 
@@ -570,7 +586,23 @@ function render(){
   activeCategoryList().forEach(cat => container.appendChild(renderCategory(cat)));
   updateBar();
   applyFilter(document.getElementById('smartInput').value);
+  updateRestoreLink();
 }
+
+function updateRestoreLink(){
+  const link = document.getElementById('restoreLink');
+  const n = state.removedMaster.size;
+  if (n > 0){
+    link.textContent = `Restore ${n} deleted item${n > 1 ? 's' : ''}`;
+    link.style.display = 'block';
+  } else {
+    link.style.display = 'none';
+  }
+}
+document.getElementById('restoreLink').addEventListener('click', () => {
+  state.removedMaster.clear();
+  render();
+});
 
 function updateBar(){
   document.getElementById('selCount').textContent = state.checked.size;
