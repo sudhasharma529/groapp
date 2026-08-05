@@ -252,27 +252,36 @@
     flex: 0 0 auto;
   }
 
-  .qty-stepper{
+  .qty-unit{
     display:flex; align-items:center;
     border: 1px solid var(--line);
     border-radius: 8px;
     overflow: hidden;
     background: var(--bg);
   }
-  .qty-stepper button{
+  .qty-unit .qty-num{
+    width: 40px;
     background: none; border: none;
-    color: var(--text-muted);
-    width: 24px; height: 26px;
-    font-size: 0.95rem;
-    line-height: 1;
-    font-family: 'Work Sans', sans-serif;
-  }
-  .qty-stepper button:active{ background: var(--surface-2); }
-  .qty-stepper .qty-val{
-    width: 22px; text-align:center;
+    color: var(--text);
+    text-align:center;
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.82rem;
-    color: var(--text);
+    padding: 5px 2px;
+    -moz-appearance: textfield;
+  }
+  .qty-unit .qty-num::-webkit-outer-spin-button,
+  .qty-unit .qty-num::-webkit-inner-spin-button{
+    -webkit-appearance: none; margin: 0;
+  }
+  .qty-unit .qty-num:focus{ outline: none; background: var(--surface-2); }
+  .qty-unit .qty-sel{
+    background: var(--surface-2);
+    border: none; border-left: 1px solid var(--line);
+    color: var(--text-muted);
+    font-family: 'Work Sans', sans-serif;
+    font-size: 0.74rem;
+    padding: 5px 3px;
+    height: 100%;
   }
 
   .buy-amz{
@@ -550,13 +559,29 @@ const state = {
   checked: new Set(),
   custom: {},        // { categoryName: [itemName, ...] } — items the user typed in themselves
   removedMaster: new Set(),  // "Category::Name" ids for built-in items the user deleted
-  qty: {}             // "Category::Name" -> quantity number
+  qty: {},            // "Category::Name" -> {amount, unit}
+  openCats: new Set() // categories currently expanded — all closed by default
 };
 CATS.forEach(c => state.custom[c] = []);
 state.custom["Other"] = [];
 
-function getQty(id){ return state.qty[id] || 1; }
-function setQty(id, val){ state.qty[id] = Math.max(1, Math.min(99, val)); }
+const UNITS = ["pcs", "kg", "g", "L", "ml", "dozen", "pack"];
+
+// sensible starting unit by category — user can always change it per item
+const UNIT_OVERRIDES = { "eggs": "pcs", "bread": "pack", "tea": "pack" };
+function defaultUnit(cat, name){
+  const n = name.toLowerCase();
+  if (UNIT_OVERRIDES[n]) return UNIT_OVERRIDES[n];
+  if (cat === "Fresh Produce") return "kg";
+  if (cat === "Dairy & Eggs") return "L";
+  if (cat === "Pantry & Dry Goods") return "kg";
+  return "pcs";
+}
+
+function getQtyState(id, cat, name){
+  if (!state.qty[id]) state.qty[id] = { amount: 1, unit: defaultUnit(cat, name) };
+  return state.qty[id];
+}
 
 const container = document.getElementById('categories');
 
@@ -576,7 +601,7 @@ function renderCategory(cat){
   const checkedCount = items.filter(it => state.checked.has(cat + '::' + it.name)).length;
 
   const catEl = document.createElement('div');
-  catEl.className = 'category open';
+  catEl.className = 'category' + (state.openCats.has(cat) ? ' open' : '');
   catEl.dataset.cat = cat;
 
   const head = document.createElement('button');
@@ -587,13 +612,17 @@ function renderCategory(cat){
     <span class="count">${checkedCount}/${items.length}</span>
     <span class="chev">›</span>
   `;
-  head.addEventListener('click', () => catEl.classList.toggle('open'));
+  head.addEventListener('click', () => {
+    catEl.classList.toggle('open');
+    if (catEl.classList.contains('open')) state.openCats.add(cat); else state.openCats.delete(cat);
+  });
 
   const itemsWrap = document.createElement('div');
   itemsWrap.className = 'items';
 
   items.forEach(({name, isMaster}) => {
     const id = cat + '::' + name;
+    const q = getQtyState(id, cat, name);
     const label = document.createElement('label');
     label.className = 'item';
     label.dataset.name = name.toLowerCase();
@@ -603,16 +632,17 @@ function renderCategory(cat){
         <span class="name">${name}</span>
       </div>
       <div class="actions">
-        <div class="qty-stepper">
-          <button type="button" class="qty-minus" aria-label="Decrease quantity">−</button>
-          <span class="qty-val">${getQty(id)}</span>
-          <button type="button" class="qty-plus" aria-label="Increase quantity">+</button>
+        <div class="qty-unit">
+          <input type="number" class="qty-num" inputmode="decimal" min="0.1" step="0.5" value="${q.amount}">
+          <select class="qty-sel">
+            ${UNITS.map(u => `<option value="${u}" ${u === q.unit ? 'selected' : ''}>${u}</option>`).join('')}
+          </select>
         </div>
         <button type="button" class="buy-amz" title="Buy on Amazon" aria-label="Buy on Amazon">🛒</button>
         <button type="button" class="remove" aria-label="Delete item">×</button>
       </div>
     `;
-    const cb = label.querySelector('input');
+    const cb = label.querySelector('input[type="checkbox"]');
     cb.checked = state.checked.has(id);
     cb.addEventListener('change', () => {
       if (cb.checked) state.checked.add(id); else state.checked.delete(id);
@@ -620,16 +650,12 @@ function renderCategory(cat){
       updateCatCount(catEl, cat);
     });
 
-    const qtyVal = label.querySelector('.qty-val');
-    label.querySelector('.qty-minus').addEventListener('click', (e) => {
-      e.preventDefault();
-      setQty(id, getQty(id) - 1);
-      qtyVal.textContent = getQty(id);
+    label.querySelector('.qty-num').addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      q.amount = isNaN(val) || val <= 0 ? 1 : Math.min(999, val);
     });
-    label.querySelector('.qty-plus').addEventListener('click', (e) => {
-      e.preventDefault();
-      setQty(id, getQty(id) + 1);
-      qtyVal.textContent = getQty(id);
+    label.querySelector('.qty-sel').addEventListener('change', (e) => {
+      q.unit = e.target.value;
     });
 
     label.querySelector('.buy-amz').addEventListener('click', (e) => {
@@ -645,7 +671,7 @@ function renderCategory(cat){
         state.custom[cat] = state.custom[cat].filter(n => n !== name);
       }
       state.checked.delete(id);
-      state.qty[id] && delete state.qty[id];
+      delete state.qty[id];
       render();
     });
     itemsWrap.appendChild(label);
@@ -697,14 +723,18 @@ function buildMessage(){
   state.checked.forEach(id => {
     const idx = id.indexOf('::');
     const cat = id.slice(0, idx), name = id.slice(idx + 2);
-    (byCat[cat] = byCat[cat] || []).push({name, qty: getQty(id)});
+    const q = state.qty[id] || { amount: 1, unit: 'pcs' };
+    (byCat[cat] = byCat[cat] || []).push({name, amount: q.amount, unit: q.unit});
   });
   let lines = ["Grocery list:"];
   activeCategoryList().forEach(cat => {
     if (byCat[cat]) {
       lines.push('');
       lines.push(cat + ':');
-      byCat[cat].forEach(({name, qty}) => lines.push('- ' + name + (qty > 1 ? ` x${qty}` : '')));
+      byCat[cat].forEach(({name, amount, unit}) => {
+        const showQty = !(amount === 1 && unit === 'pcs');
+        lines.push('- ' + name + (showQty ? ` — ${amount}${unit}` : ''));
+      });
     }
   });
   return lines.join('\n');
@@ -716,6 +746,7 @@ function applyFilter(rawQ){
   let anyVisible = false;
 
   document.querySelectorAll('.category').forEach(catEl => {
+    const cat = catEl.dataset.cat;
     let catHasMatch = false;
     catEl.querySelectorAll('.item').forEach(itemEl => {
       const match = itemEl.dataset.name.includes(q);
@@ -724,9 +755,13 @@ function applyFilter(rawQ){
     });
     if (q) {
       catEl.classList.toggle('hidden', !catHasMatch);
+      // auto-expand categories with a match while searching, so results are actually visible
+      catEl.classList.toggle('open', catHasMatch);
       if (catHasMatch) anyVisible = true;
     } else {
       catEl.classList.remove('hidden');
+      // search cleared — go back to whatever the user had open/closed manually
+      catEl.classList.toggle('open', state.openCats.has(cat));
     }
   });
 
