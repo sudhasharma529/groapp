@@ -205,13 +205,19 @@
   .category:not(.open) .items{ display:none; }
 
   label.item{
-    display:flex; align-items:center; gap: 12px;
+    display:flex; flex-wrap: wrap; align-items:center;
+    gap: 8px 10px;
     padding: 10px 10px;
     border-radius: 10px;
     font-size: 0.94rem;
   }
   label.item:active{ background: var(--surface-2); }
   label.item.hidden{ display:none; }
+
+  .item .checkbox-name{
+    display:flex; align-items:center; gap: 12px;
+    flex: 1 1 130px; min-width: 130px;
+  }
 
   label.item input[type="checkbox"]{
     appearance: none; -webkit-appearance: none;
@@ -234,11 +240,53 @@
   label.item input[type="checkbox"]:checked{ border-color: var(--turmeric); }
 
   label.item span.name{ flex:1; }
-  label.item input[type="checkbox"]:checked ~ span.name{
+  .checkbox-name input[type="checkbox"]:checked + span.name{
     color: var(--text-muted);
     text-decoration: line-through;
     text-decoration-color: var(--turmeric);
   }
+
+  .item .actions{
+    display:flex; align-items:center; gap: 6px;
+    margin-left: auto;
+    flex: 0 0 auto;
+  }
+
+  .qty-stepper{
+    display:flex; align-items:center;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--bg);
+  }
+  .qty-stepper button{
+    background: none; border: none;
+    color: var(--text-muted);
+    width: 24px; height: 26px;
+    font-size: 0.95rem;
+    line-height: 1;
+    font-family: 'Work Sans', sans-serif;
+  }
+  .qty-stepper button:active{ background: var(--surface-2); }
+  .qty-stepper .qty-val{
+    width: 22px; text-align:center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+    color: var(--text);
+  }
+
+  .buy-amz{
+    flex: 0 0 auto;
+    background: none;
+    border: 1px solid #7a5a1e;
+    color: #FF9900;
+    border-radius: 8px;
+    width: 30px; height: 26px;
+    font-size: 0.9rem;
+    line-height: 1;
+    display:grid; place-items:center;
+  }
+  .buy-amz:active{ background: var(--surface-2); }
 
   label.item .remove{
     flex: 0 0 auto;
@@ -501,10 +549,14 @@ function categorize(name){
 const state = {
   checked: new Set(),
   custom: {},        // { categoryName: [itemName, ...] } — items the user typed in themselves
-  removedMaster: new Set()  // "Category::Name" ids for built-in items the user deleted
+  removedMaster: new Set(),  // "Category::Name" ids for built-in items the user deleted
+  qty: {}             // "Category::Name" -> quantity number
 };
 CATS.forEach(c => state.custom[c] = []);
 state.custom["Other"] = [];
+
+function getQty(id){ return state.qty[id] || 1; }
+function setQty(id, val){ state.qty[id] = Math.max(1, Math.min(99, val)); }
 
 const container = document.getElementById('categories');
 
@@ -546,9 +598,19 @@ function renderCategory(cat){
     label.className = 'item';
     label.dataset.name = name.toLowerCase();
     label.innerHTML = `
-      <input type="checkbox" data-id="${id.replace(/"/g,'')}">
-      <span class="name">${name}</span>
-      <button type="button" class="remove" aria-label="Delete item">×</button>
+      <div class="checkbox-name">
+        <input type="checkbox" data-id="${id.replace(/"/g,'')}">
+        <span class="name">${name}</span>
+      </div>
+      <div class="actions">
+        <div class="qty-stepper">
+          <button type="button" class="qty-minus" aria-label="Decrease quantity">−</button>
+          <span class="qty-val">${getQty(id)}</span>
+          <button type="button" class="qty-plus" aria-label="Increase quantity">+</button>
+        </div>
+        <button type="button" class="buy-amz" title="Buy on Amazon" aria-label="Buy on Amazon">🛒</button>
+        <button type="button" class="remove" aria-label="Delete item">×</button>
+      </div>
     `;
     const cb = label.querySelector('input');
     cb.checked = state.checked.has(id);
@@ -557,6 +619,24 @@ function renderCategory(cat){
       updateBar();
       updateCatCount(catEl, cat);
     });
+
+    const qtyVal = label.querySelector('.qty-val');
+    label.querySelector('.qty-minus').addEventListener('click', (e) => {
+      e.preventDefault();
+      setQty(id, getQty(id) - 1);
+      qtyVal.textContent = getQty(id);
+    });
+    label.querySelector('.qty-plus').addEventListener('click', (e) => {
+      e.preventDefault();
+      setQty(id, getQty(id) + 1);
+      qtyVal.textContent = getQty(id);
+    });
+
+    label.querySelector('.buy-amz').addEventListener('click', (e) => {
+      e.preventDefault();
+      window.open(`https://www.amazon.com/s?k=${encodeURIComponent(name)}`, '_blank');
+    });
+
     label.querySelector('.remove').addEventListener('click', (e) => {
       e.preventDefault();
       if (isMaster){
@@ -565,6 +645,7 @@ function renderCategory(cat){
         state.custom[cat] = state.custom[cat].filter(n => n !== name);
       }
       state.checked.delete(id);
+      state.qty[id] && delete state.qty[id];
       render();
     });
     itemsWrap.appendChild(label);
@@ -616,14 +697,14 @@ function buildMessage(){
   state.checked.forEach(id => {
     const idx = id.indexOf('::');
     const cat = id.slice(0, idx), name = id.slice(idx + 2);
-    (byCat[cat] = byCat[cat] || []).push(name);
+    (byCat[cat] = byCat[cat] || []).push({name, qty: getQty(id)});
   });
   let lines = ["Grocery list:"];
   activeCategoryList().forEach(cat => {
     if (byCat[cat]) {
       lines.push('');
       lines.push(cat + ':');
-      byCat[cat].forEach(n => lines.push('- ' + n));
+      byCat[cat].forEach(({name, qty}) => lines.push('- ' + name + (qty > 1 ? ` x${qty}` : '')));
     }
   });
   return lines.join('\n');
@@ -690,6 +771,7 @@ document.getElementById('clearAll').addEventListener('click', () => {
   state.checked.clear();
   CATS.forEach(c => state.custom[c] = []);
   state.custom["Other"] = [];
+  state.qty = {};
   document.getElementById('smartInput').value = '';
   render();
 });
